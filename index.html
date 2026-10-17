@@ -333,6 +333,11 @@ let au=null,cur="",SR=[],tm=0,seq=0;
 function stop(){if(au){au.pause();au=null}cur="";ROOT.querySelectorAll(".pl.on").forEach(b=>b.classList.remove("on"))}
 function play(url,btn){if(cur===url){stop();return}stop();au=new Audio(url);cur=url;btn.classList.add("on");au.onended=stop;au.play().catch(stop)}
 const pkHTML=r=>r&&r.p?`<div class="sr own"><img src="${esc(r.i||"")}" alt=""><span class="nm">${esc(r.s||"")}<small>${esc(r.a||"")}</small></span><button class="pl" data-pl="${esc(r.p)}" aria-label="Écouter l’extrait">▶</button></div>`:"";
+function jsonp(url){return new Promise((ok,ko)=>{
+  const cb="itcb"+Date.now()+Math.floor(Math.random()*1e4),sc=document.createElement("script");
+  const end=()=>{clearTimeout(t);delete window[cb];sc.remove()},t=setTimeout(()=>{end();ko(new Error("timeout"))},8000);
+  window[cb]=d=>{end();ok(d)};sc.onerror=()=>{end();ko(new Error("script"))};
+  sc.src=url+"&callback="+cb;document.head.appendChild(sc)})}
 function search(id){
   clearTimeout(tm);const box=$("res");if(!box)return;
   const r=R[id]||{},q=((r.s||"")+" "+(r.a||"")).trim();
@@ -340,7 +345,7 @@ function search(id){
   tm=setTimeout(async()=>{
     const my=++seq;box.innerHTML='<p class="empty">Recherche…</p>';
     try{
-      const j=await (await fetch("https://itunes.apple.com/search?media=music&entity=song&limit=8&country=fr&term="+encodeURIComponent(q))).json();
+      const j=await jsonp("https://itunes.apple.com/search?media=music&entity=song&limit=8&country=fr&term="+encodeURIComponent(q));
       if(my!==seq)return;
       SR=(j.results||[]).filter(x=>x.previewUrl);
       box.innerHTML=SR.length?SR.map((x,i)=>`<div class="sr" data-pick="${i}" data-id="${id}"><img src="${esc(x.artworkUrl60||"")}" alt=""><span class="nm">${esc(x.trackName)}<small>${esc(x.artistName)}</small></span><button class="pl" data-pv="${i}" aria-label="Écouter l’extrait">▶</button></div>`).join(""):'<p class="empty">Aucun résultat.</p>';
