@@ -51,6 +51,24 @@ textarea{width:100%;min-height:84px;resize:vertical;background:var(--card);color
 .rank .sc{font-weight:800;font-size:1.3rem;color:var(--gold)}
 .rank em{color:var(--gold)}
 .song{display:grid;gap:8px;margin:8px 0 4px}
+.gl{list-style:none;margin:0 0 4px;padding:0;display:grid;gap:10px}
+.gl li{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;cursor:pointer}
+.gm{display:flex}
+.gm i{width:34px;height:34px;border-radius:50%;background-size:cover;background-position:center;border:2px solid var(--bg);margin-left:-10px}
+.gm i:first-child{margin-left:0}
+.gl .nm{flex:1;font-weight:700}
+.gl small{display:block;color:var(--mut);font-weight:400}
+.gl .sc{font-weight:800;font-size:1.3rem;color:var(--gold)}
+.mem{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
+.mb{aspect-ratio:1;border-radius:12px;border:2px solid var(--line);background-size:cover;background-position:center;position:relative;padding:0;opacity:.45;overflow:hidden}
+.mb.on{opacity:1;border-color:var(--gold)}
+.mb span{position:absolute;left:0;right:0;bottom:0;font-size:.62rem;background:rgba(0,0,0,.65);padding:1px 0}
+.gst img{flex:1 1 0;max-width:34%}
+.empty{text-align:center;color:var(--mut)}
+.rh{color:var(--gold);margin:24px 0 10px;font-size:1.2rem}
+.rank .gi{display:flex;flex:none}
+.rank .gi img{height:60px;width:40px;margin-left:-14px}
+.rank .gi img:first-child{margin-left:0}
 .wd{width:100%;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:12px;padding:10px;font:inherit}
 .pdf{display:block;width:100%;margin-top:18px;background:var(--gold);color:var(--bg);border:0;border-radius:999px;padding:12px;font-weight:700}
 </style>
@@ -60,7 +78,7 @@ textarea{width:100%;min-height:84px;resize:vertical;background:var(--card);color
   <header>
     <h1 class="logo">★ Star <span>Academy</span></h1>
     <p class="sub">Promo 2026 · Mes notes</p>
-    <nav class="tabs"><button data-tab="home" class="on">Promo</button><button data-tab="rank">Classement</button></nav>
+    <nav class="tabs"><button data-tab="home" class="on">Promo</button><button data-tab="groups">Groupes</button><button data-tab="rank">Classement</button></nav>
   </header>
   <div id="app"></div>
 </main>
@@ -73,6 +91,10 @@ const T=["Conquis","Dans le doute","Déçu"];
 let R={},tab="home";
 try{R=JSON.parse(localStorage.getItem("sa-fiches"))||{}}catch(e){}
 const save=()=>{try{localStorage.setItem("sa-fiches",JSON.stringify(R))}catch(e){}};
+let G=[];
+try{G=JSON.parse(localStorage.getItem("sa-groupes"))||[]}catch(e){}
+const saveG=()=>{try{localStorage.setItem("sa-groupes",JSON.stringify(G))}catch(e){}};
+G=G.filter(g=>g&&g.id);G.forEach(g=>g.ms=(g.ms||[]).filter(n=>P[n]));
 const $=id=>document.getElementById(id);
 const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const f=x=>x===null?"–":(Math.round(x*10)/10).toString().replace(".",",");
@@ -116,15 +138,20 @@ function makePDF(jp,w,h){
 async function pdf(){
   const b=$("pdf"),lab=b.textContent;b.textContent="Création du PDF…";b.disabled=true;
   try{
-    const I={},Ph={};
-    await Promise.all(N.map(async n=>{I[n]=await ld(C[n][mood(avg(n))]);Ph[n]=await ld(P[n])}));
-    const L=N.slice().sort((a,b)=>(avg(b)??-1)-(avg(a)??-1)),pg=[];
+    const NR=N.filter(n=>avg(n)!==null),GR=gsort().filter(g=>avg(g.id)!==null),I={},Ph={},cov={};
+    await Promise.all(NR.map(async n=>{I[n]=await ld(C[n][mood(avg(n))]);Ph[n]=await ld(P[n])}));
+    GR.forEach(g=>g.ms.forEach(n=>{if(!(n in cov))cov[n]=C[n][mood(avg(g.id))]}));
+    NR.forEach(n=>cov[n]=C[n][mood(avg(n))]);
+    const CN=N.filter(n=>n in cov);
+    await Promise.all(CN.map(async n=>{cov[n]=await ld(cov[n])}));
+    const L=NR.slice().sort((a,b)=>(avg(b)??-1)-(avg(a)??-1)),pg=[];
     let [cv,c]=page();pg.push(cv);
     logo(c,92,40);tx(c,"Promo 2026",W/2,120,16,"#e9b8c0","center");
     tx(c,"Mes notes",W/2,200,46,"#fff","center","800");tx(c,"d’évaluation",W/2,250,46,"#f5c04a","center","800");
     const cw=(W-80)/4;
-    N.forEach((n,i)=>{const x=40+(i%4)*cw,y=300+Math.floor(i/4)*122;fit(c,I[n],x,y,cw,100);tx(c,n,x+cw/2,y+116,11,"#fff","center","600")});
-    N.forEach(n=>{
+    if(!CN.length)tx(c,"Aucune note pour le moment",W/2,400,16,"#e9b8c0","center","500");
+    CN.forEach((n,i)=>{const x=40+(i%4)*cw,y=300+Math.floor(i/4)*122;fit(c,cov[n],x,y,cw,100);tx(c,n,x+cw/2,y+116,11,"#fff","center","600")});
+    NR.forEach(n=>{
       [cv,c]=page();pg.push(cv);const r=R[n]||{},a=avg(n),m=mood(a);
       logo(c,54,16);tx(c,n,W/2,108,40,"#f5c04a","center","800");
       if(r.s||r.a)tx(c,"♪ "+(r.s||"")+(r.s&&r.a?" – ":"")+(r.a||""),W/2,134,15,"#e9b8c0","center","italic 500");
@@ -140,6 +167,22 @@ async function pdf(){
       if(r.w)tx(c,"« "+r.w+" »",W/2,708,22,"#f5c04a","center","italic 700");
       if(r.c){c.fillStyle="rgba(0,0,0,.28)";rr(c,40,725,W-80,76,10);c.fill();wrap(c,r.c,54,746,W-108,15,4,12)}
     });
+    for(const g of GR){
+      [cv,c]=page();pg.push(cv);const r=R[g.id]||{},a=avg(g.id),m=mood(a),nk=g.ms.length;
+      logo(c,54,16);tx(c,g.t||"Passage en groupe",W/2,108,(g.t||"").length>22?28:38,"#f5c04a","center","800");
+      if(r.s||r.a)tx(c,"♪ "+(r.s||"")+(r.s&&r.a?" – ":"")+(r.a||""),W/2,134,15,"#e9b8c0","center","italic 500");
+      const gw=Math.min(150,(W-80)/Math.max(nk,1)),x0=(W-gw*nk)/2;
+      for(let i=0;i<nk;i++){const im=await ld(C[g.ms[i]][m]);fit(c,im,x0+i*gw,150,gw,250);tx(c,g.ms[i],x0+i*gw+gw/2,418,12,"#fff","center","600")}
+      tx(c,f(a),40,480,50,"#f5c04a","left","800");tx(c,"/ 20",40+c.measureText(f(a)).width+8,480,16,"#e9b8c0","left","500");
+      tx(c,a===null?"Pas encore noté":T[m],40,504,15,"#e9b8c0","left","500");
+      K.forEach(([k,l],i)=>{const y=548+i*50,v=typeof r[k]==="number"?r[k]:null;
+        tx(c,l,40,y,15,"#fff","left","600");tx(c,f(v),W-40,y,16,"#f5c04a","right","700");
+        c.fillStyle="rgba(255,255,255,.15)";rr(c,40,y+10,W-80,10,5);c.fill();
+        if(v){c.fillStyle="#f5c04a";rr(c,40,y+10,Math.max(10,(W-80)*v/20),10,5);c.fill()}});
+      if(r.w)tx(c,"« "+r.w+" »",W/2,716,20,"#f5c04a","center","italic 700");
+      if(r.c){c.fillStyle="rgba(0,0,0,.28)";rr(c,40,730,W-80,70,10);c.fill();wrap(c,r.c,54,750,W-108,15,3,12)}
+    }
+    if(NR.length){
     [cv,c]=page();pg.push(cv);
     logo(c,54,16);tx(c,"Classement",W/2,100,34,"#f5c04a","center","800");
     L.forEach((n,i)=>{const y=125+i*42,a=avg(n),r=R[n]||{};
@@ -149,6 +192,19 @@ async function pdf(){
       tx(c,n,118,y+17,15,"#fff","left","700");
       tx(c,(a===null?"Pas encore noté":T[mood(a)])+(r.w?" · "+r.w:""),118,y+31,10,"#e9b8c0","left","500");
       tx(c,f(a),W-48,y+25,18,"#f5c04a","right","800")});
+    }
+    if(GR.length){
+      [cv,c]=page();pg.push(cv);
+      logo(c,54,16);tx(c,"Classement des groupes",W/2,100,30,"#f5c04a","center","800");
+      const GL=GR.slice(0,16);
+      for(let i=0;i<GL.length;i++){const g=GL[i],y=125+i*42,a=avg(g.id),m=mood(a),r=R[g.id]||{};
+        c.fillStyle="rgba(0,0,0,.28)";rr(c,34,y,W-68,38,8);c.fill();
+        tx(c,a===null?"–":String(i+1),54,y+25,16,"#f5c04a","center","800");
+        for(let j=0;j<Math.min(3,g.ms.length);j++){const im=await ld(C[g.ms[j]][m]);fit(c,im,72+j*24,y,34,38)}
+        tx(c,gname(g).slice(0,34),150,y+17,15,"#fff","left","700");
+        tx(c,(a===null?"Pas encore noté":T[m])+(r.w?" · "+r.w:""),150,y+31,10,"#e9b8c0","left","500");
+        tx(c,f(a),W-48,y+25,18,"#f5c04a","right","800")}
+    }
     const jp=pg.map(v=>{const d=atob(v.toDataURL("image/jpeg",.85).split(",")[1]),u=new Uint8Array(d.length);for(let i=0;i<d.length;i++)u[i]=d.charCodeAt(i);return u});
     const url=URL.createObjectURL(makePDF(jp,pg[0].width,pg[0].height)),a=document.createElement("a");
     a.href=url;a.download="notes-star-academy.pdf";document.body.appendChild(a);a.click();
@@ -156,12 +212,36 @@ async function pdf(){
   }catch(e){console.error(e);alert("Le PDF n’a pas pu être créé.")}
   b.textContent=lab;b.disabled=false;
 }
+const gname=g=>g.t||g.ms.join(", ")||"Groupe";
+const gsort=()=>G.slice().sort((x,y)=>(avg(y.id)??-1)-(avg(x.id)??-1));
+function gr(){return G.length?'<h3 class="rh">Classement des groupes</h3><ol class="rank">'+gsort().map((g,i)=>{const a=avg(g.id),m=mood(a),r=R[g.id]||{};
+  return `<li data-g="${g.id}"><span class="pos">${a===null?"–":i+1}</span><span class="gi">${g.ms.slice(0,3).map(n=>`<img src="${C[n][m]}" alt="">`).join("")}</span><span class="nm">${esc(gname(g))}<small>${a===null?"Pas encore noté":T[m]}${r.w?` · <em>${esc(r.w)}</em>`:""}</small></span><span class="sc">${f(a)}</span></li>`}).join("")+"</ol>":""}
+const goTab=k=>k==="rank"?rank():k==="groups"?groups():home();
+function groups(){
+  tab="groups";tabs();
+  $("app").innerHTML=(G.length?'<ul class="gl">'+G.map(g=>{const a=avg(g.id),r=R[g.id]||{};
+    return `<li data-g="${g.id}"><span class="gm">${g.ms.slice(0,4).map(n=>`<i style="background-image:url(${P[n]})"></i>`).join("")}</span><span class="nm">${esc(g.t||g.ms.join(", ")||"Nouveau groupe")}<small>${r.s?esc(r.s):"Pas encore de chanson"} · ${a===null?"Pas encore noté":T[mood(a)]}</small></span><span class="sc">${f(a)}</span></li>`}).join("")+"</ul>":'<p class="empty">Aucun groupe pour le moment.</p>')+'<button class="pdf" id="newg">+ Nouveau groupe</button>';
+  scrollTo(0,0);
+}
+function gfiche(id){
+  const g=G.find(x=>x.id===id),r=R[id]||{};
+  $("app").innerHTML=`<button class="back" data-back>← Groupes</button><h2>Passage en groupe</h2>
+  <div class="cm"><label>Nom du groupe (facultatif)</label><input class="wd" maxlength="40" data-gt="${id}" value="${esc(g.t||"")}"></div>
+  <div class="cm" style="margin-top:12px"><label>Membres</label><div class="mem">${N.map(n=>`<button class="mb ${g.ms.includes(n)?"on":""}" data-mb="${n}" data-g="${id}" style="background-image:url(${P[n]})"><span>${n}</span></button>`).join("")}</div></div>
+  <div class="song"><input class="wd" maxlength="60" data-song="${id}" placeholder="Titre de la chanson" value="${esc(r.s||"")}"><input class="wd" maxlength="60" data-art="${id}" placeholder="Artiste" value="${esc(r.a||"")}"></div>
+  <div class="stage gst" id="gst"></div>
+  <div class="avgbox"><big id="av"></big><small> /20</small><div class="mood" id="md"></div></div>
+  <div class="crit">`+K.map(([k,l])=>`<div><label>${l}<output id="o-${k}">${f(typeof r[k]==="number"?r[k]:null)}</output></label><input type="range" min="0" max="20" step="0.5" value="${typeof r[k]==="number"?r[k]:10}" data-k="${k}" data-n="${id}"></div>`).join("")+
+  `</div><div class="cm" style="margin-top:16px"><label>Un mot sur sa performance</label><input class="wd" maxlength="30" data-w="${id}" placeholder="Ex. : bouleversant" value="${esc(r.w||"")}"></div><div class="cm" style="margin-top:16px"><label>Commentaire</label><textarea data-c="${id}" placeholder="Tes remarques…">${esc(r.c||"")}</textarea></div><button class="clear" data-delg="${id}">Supprimer le groupe</button>`;
+  gupd(id);scrollTo(0,0);
+}
+function gupd(id){const g=G.find(x=>x.id===id),a=avg(id),m=mood(a);$("av").textContent=f(a);$("md").textContent=a===null?"Pas encore noté":T[m];$("gst").innerHTML=g.ms.map(n=>`<img src="${C[n][m]}" alt="">`).join("")||'<p class="empty">Choisis les membres du groupe.</p>'}
 function tabs(){document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab))}
 function rank(){
   tab="rank";tabs();
   const L=N.slice().sort((a,b)=>(avg(b)??-1)-(avg(a)??-1));
   $("app").innerHTML='<ol class="rank">'+L.map((n,i)=>{const a=avg(n);
-    return `<li data-n="${n}"><span class="pos">${a===null?"–":i+1}</span><img src="${C[n][mood(a)]}" alt=""><span class="nm">${n}<small>${a===null?"Pas encore noté":T[mood(a)]}${(R[n]||{}).w?` · <em>${esc(R[n].w)}</em>`:""}</small></span><span class="sc">${f(a)}</span></li>`}).join("")+'</ol><button class="pdf" id="pdf">Télécharger le PDF</button>';
+    return `<li data-n="${n}"><span class="pos">${a===null?"–":i+1}</span><img src="${C[n][mood(a)]}" alt=""><span class="nm">${n}<small>${a===null?"Pas encore noté":T[mood(a)]}${(R[n]||{}).w?` · <em>${esc(R[n].w)}</em>`:""}</small></span><span class="sc">${f(a)}</span></li>`}).join("")+'</ol>'+gr()+'<button class="pdf" id="pdf">Télécharger le PDF</button>';
   scrollTo(0,0);
 }
 function home(){
@@ -184,14 +264,22 @@ function upd(n){const a=avg(n),m=mood(a);$("av").textContent=f(a);$("md").textCo
 document.addEventListener("click",e=>{
   const c=e.target.closest("[data-n]");
   if(c&&(c.classList.contains("card")||c.tagName==="LI"))return fiche(c.dataset.n);
+  const mb=e.target.closest("[data-mb]");
+  if(mb){const g=G.find(x=>x.id===mb.dataset.g),n=mb.dataset.mb,i=g.ms.indexOf(n);if(i<0)g.ms.push(n);else g.ms.splice(i,1);mb.classList.toggle("on",i<0);saveG();return gupd(g.id)}
+  const gl=e.target.closest("li[data-g]");if(gl)return gfiche(gl.dataset.g);
+  if(e.target.id==="newg"){const id="g"+Date.now();G.push({id,t:"",ms:[]});saveG();return gfiche(id)}
+  const dg=e.target.closest("[data-delg]");
+  if(dg){const id=dg.dataset.delg;G=G.filter(x=>x.id!==id);delete R[id];save();saveG();return groups()}
   if(e.target.id==="pdf")return pdf();
   const t=e.target.closest("[data-tab]");
-  if(t)return t.dataset.tab==="rank"?rank():home();
-  if(e.target.closest("[data-back]"))return tab==="rank"?rank():home();
+  if(t)return goTab(t.dataset.tab);
+  if(e.target.closest("[data-back]"))return goTab(tab);
   const d=e.target.closest("[data-clear]");
   if(d){delete R[d.dataset.clear];save();fiche(d.dataset.clear)}
 });
 document.addEventListener("input",e=>{
+  const gt=e.target.dataset&&e.target.dataset.gt;
+  if(gt){G.find(x=>x.id===gt).t=e.target.value;return saveG()}
   const sg=e.target.dataset&&e.target.dataset.song,ar=e.target.dataset&&e.target.dataset.art;
   if(sg||ar){const id=sg||ar;(R[id]=R[id]||{})[sg?"s":"a"]=e.target.value;return save()}
   const wd=e.target.dataset&&e.target.dataset.w;
@@ -200,7 +288,7 @@ document.addEventListener("input",e=>{
   if(cm){(R[cm]=R[cm]||{}).c=e.target.value;return save()}
   const k=e.target.dataset&&e.target.dataset.k;if(!k)return;
   const n=e.target.dataset.n;(R[n]=R[n]||{})[k]=+e.target.value;
-  $("o-"+k).textContent=f(+e.target.value);save();upd(n);
+  $("o-"+k).textContent=f(+e.target.value);save();P[n]?upd(n):gupd(n);
 });
 home();
 </script>
