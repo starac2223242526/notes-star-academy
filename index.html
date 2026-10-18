@@ -139,6 +139,10 @@ input[type=range]{touch-action:pan-y}
 #home .nt{position:absolute;color:#f5c04a;text-shadow:0 0 10px rgba(245,192,74,.8);opacity:0;animation:nt 3s ease-in-out forwards}
 @keyframes nt{0%{opacity:0;transform:translateY(8px) scale(.6)}30%{opacity:1}60%{opacity:.9;transform:translateY(-8px) scale(1)}100%{opacity:0;transform:translateY(-26px) scale(1.1)}}
 @media (prefers-reduced-motion:reduce){#home .beam{animation:none}#home .nt{display:none}}
+#notes .gavg{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 10px;margin-top:12px;padding:12px 16px;border:1px solid rgba(245,192,74,.85);border-radius:14px;background:rgba(0,0,0,.28)}
+#notes .gavg span{font-weight:700}
+#notes .gavg b{color:var(--gold);font-size:1.3rem}
+#notes .gavg small{width:100%;color:var(--mut)}
 </style>
 </head>
 <body>
@@ -243,6 +247,11 @@ function makePDF(jp,w,h){
   return new Blob(parts,{type:"application/pdf"});
 }
 const ldc=u=>new Promise(r=>{if(!u)return r(null);const i=new Image(),t=setTimeout(()=>r(null),6000);i.crossOrigin="anonymous";i.onload=()=>{clearTimeout(t);r(i)};i.onerror=()=>{clearTimeout(t);r(null)};i.src=u});
+function avgBar(c,y,vals,lab){
+  const v=vals.filter(x=>x!==null);if(!v.length)return;const m=v.reduce((a,b)=>a+b)/v.length;
+  c.fillStyle="rgba(0,0,0,.28)";c.strokeStyle="rgba(245,192,74,.85)";c.lineWidth=1.5;rr(c,34,y,W-68,36,8);c.fill();c.stroke();
+  tx(c,"Moyenne générale · "+v.length+" "+lab,50,y+23,14,"#fff","left","700");tx(c,f(m)+" / 20",W-48,y+24,18,"#f5c04a","right","800");
+}
 function songCard(c,r,im,x,y){
   c.save();rr(c,x,y,50,50,8);c.clip();c.drawImage(im,x,y,50,50);c.restore();
   c.strokeStyle="rgba(245,192,74,.7)";c.lineWidth=1.5;rr(c,x,y,50,50,8);c.stroke();
@@ -302,25 +311,27 @@ async function pdf(){
     if(NR.length){
     [cv,c]=page();pg.push(cv);
     logo(c,54,16);tx(c,"Classement",W/2,100,34,"#f5c04a","center","800");
-    L.forEach((n,i)=>{const y=125+i*42,a=avg(n),r=R[n]||{};
-      c.fillStyle="rgba(0,0,0,.28)";rr(c,34,y,W-68,38,8);c.fill();
+    L.forEach((n,i)=>{const y=125+i*40,a=avg(n),r=R[n]||{};
+      c.fillStyle="rgba(0,0,0,.28)";rr(c,34,y,W-68,36,8);c.fill();
       tx(c,a===null?"–":String(i+1),54,y+25,16,"#f5c04a","center","800");
-      fit(c,I[n],72,y,34,38);
+      fit(c,I[n],72,y,34,36);
       tx(c,n,118,y+17,15,"#fff","left","700");
       tx(c,(a===null?"Pas encore noté":T[mood(a)])+(r.w?" · "+r.w:""),118,y+31,10,"#e9b8c0","left","500");
       tx(c,f(a),W-48,y+25,18,"#f5c04a","right","800")});
+      avgBar(c,125+L.length*40+8,L.map(n=>avg(n)),L.length>1?"élèves notés":"élève noté");
     }
     if(GR.length){
       [cv,c]=page();pg.push(cv);
       logo(c,54,16);tx(c,"Classement des groupes",W/2,100,30,"#f5c04a","center","800");
       const GL=GR.slice(0,16);
-      for(let i=0;i<GL.length;i++){const g=GL[i],y=125+i*42,a=avg(g.id),m=mood(a),r=R[g.id]||{};
-        c.fillStyle="rgba(0,0,0,.28)";rr(c,34,y,W-68,38,8);c.fill();
+      for(let i=0;i<GL.length;i++){const g=GL[i],y=125+i*40,a=avg(g.id),m=mood(a),r=R[g.id]||{};
+        c.fillStyle="rgba(0,0,0,.28)";rr(c,34,y,W-68,36,8);c.fill();
         tx(c,a===null?"–":String(i+1),54,y+25,16,"#f5c04a","center","800");
-        for(let j=0;j<Math.min(3,g.ms.length);j++){const im=await ld(C[g.ms[j]][m]);fit(c,im,72+j*24,y,34,38)}
+        for(let j=0;j<Math.min(3,g.ms.length);j++){const im=await ld(C[g.ms[j]][m]);fit(c,im,72+j*24,y,34,36)}
         tx(c,gname(g).slice(0,34),150,y+17,15,"#fff","left","700");
         tx(c,(a===null?"Pas encore noté":T[m])+(r.w?" · "+r.w:""),150,y+31,10,"#e9b8c0","left","500");
         tx(c,f(a),W-48,y+25,18,"#f5c04a","right","800")}
+      avgBar(c,125+GL.length*40+8,GL.map(g=>avg(g.id)),GL.length>1?"groupes notés":"groupe noté");
     }
     const jp=pg.map(v=>{const d=atob(v.toDataURL("image/jpeg",.85).split(",")[1]),u=new Uint8Array(d.length);for(let i=0;i<d.length;i++)u[i]=d.charCodeAt(i);return u});
     const url=URL.createObjectURL(makePDF(jp,pg[0].width,pg[0].height)),a=document.createElement("a");
@@ -331,8 +342,9 @@ async function pdf(){
 }
 const gname=g=>g.t||g.ms.join(", ")||"Groupe";
 const gsort=()=>G.slice().sort((x,y)=>(avg(y.id)??-1)-(avg(x.id)??-1));
+const gma=(arr,lb)=>{const v=arr.filter(x=>x!==null);return v.length?`<div class="gavg"><span>Moyenne générale</span><b>${f(v.reduce((a,b)=>a+b)/v.length)} / 20</b><small>Sur ${v.length} ${v.length>1?lb[1]:lb[0]}</small></div>`:""};
 function gr(){return G.length?'<h3 class="rh">Classement des groupes</h3><ol class="rank">'+gsort().map((g,i)=>{const a=avg(g.id),m=mood(a),r=R[g.id]||{};
-  return `<li data-g="${g.id}"><span class="pos">${a===null?"–":i+1}</span><span class="gi">${g.ms.slice(0,3).map(n=>`<img src="${C[n][m]}" alt="">`).join("")}</span><span class="nm">${esc(gname(g))}<small>${a===null?"Pas encore noté":T[m]}${r.w?` · <em>${esc(r.w)}</em>`:""}</small></span><span class="sc">${f(a)}</span></li>`}).join("")+"</ol>":""}
+  return `<li data-g="${g.id}"><span class="pos">${a===null?"–":i+1}</span><span class="gi">${g.ms.slice(0,3).map(n=>`<img src="${C[n][m]}" alt="">`).join("")}</span><span class="nm">${esc(gname(g))}<small>${a===null?"Pas encore noté":T[m]}${r.w?` · <em>${esc(r.w)}</em>`:""}</small></span><span class="sc">${f(a)}</span></li>`}).join("")+"</ol>"+gma(G.map(g=>avg(g.id)),["groupe noté","groupes notés"]):""}
 const goTab=k=>k==="rank"?rank():k==="groups"?groups():home();
 function groups(){
   tab="groups";tabs();
@@ -391,7 +403,7 @@ function rank(){
   tab="rank";tabs();
   const L=N.slice().sort((a,b)=>(avg(b)??-1)-(avg(a)??-1));
   $("app").innerHTML='<ol class="rank">'+L.map((n,i)=>{const a=avg(n);
-    return `<li data-n="${n}"><span class="pos">${a===null?"–":i+1}</span><img src="${C[n][mood(a)]}" alt=""><span class="nm">${n}<small>${a===null?"Pas encore noté":T[mood(a)]}${(R[n]||{}).w?` · <em>${esc(R[n].w)}</em>`:""}</small></span><span class="sc">${f(a)}</span></li>`}).join("")+'</ol>'+gr()+'<button class="pdf" id="pdf">Télécharger le PDF</button><button class="clear" id="wipe">Tout supprimer</button>';
+    return `<li data-n="${n}"><span class="pos">${a===null?"–":i+1}</span><img src="${C[n][mood(a)]}" alt=""><span class="nm">${n}<small>${a===null?"Pas encore noté":T[mood(a)]}${(R[n]||{}).w?` · <em>${esc(R[n].w)}</em>`:""}</small></span><span class="sc">${f(a)}</span></li>`}).join("")+'</ol>'+gma(L.map(n=>avg(n)),["élève noté","élèves notés"])+gr()+'<button class="pdf" id="pdf">Télécharger le PDF</button><button class="clear" id="wipe">Tout supprimer</button>';
   top0();
 }
 function home(){
