@@ -143,6 +143,14 @@ input[type=range]{touch-action:pan-y}
 #notes .gavg span{font-weight:700}
 #notes .gavg b{color:var(--gold);font-size:1.3rem}
 #notes .gavg small{width:100%;color:var(--mut)}
+#notes .tg{display:block;width:100%;margin:10px 0;padding:12px;border:1px solid rgba(245,192,74,.85);border-radius:999px;background:rgba(0,0,0,.28);color:var(--fg);font:inherit;font-weight:700;cursor:pointer}
+#notes .tg.on{background:var(--gold);color:var(--bg)}
+#notes .mbx{margin-top:14px}
+#notes .mh{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+#notes .mh i{width:40px;height:40px;border-radius:50%;background-size:cover;background-position:center;border:2px solid var(--gold)}
+#notes .mh b{flex:1}
+#notes .mh span{color:var(--gold);font-weight:800;font-size:1.2rem}
+#notes .note{color:var(--mut);font-size:.85rem;margin:0 0 4px}
 </style>
 </head>
 <body>
@@ -209,7 +217,9 @@ G=G.filter(g=>g&&g.id);G.forEach(g=>g.ms=(g.ms||[]).filter(n=>P[n]));
 const $=id=>ROOT.querySelector("#"+id);
 const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const f=x=>x===null?"–":(Math.round(x*10)/10).toString().replace(".",",");
-function avg(n){const v=K.map(([k])=>(R[n]||{})[k]).filter(x=>typeof x==="number");return v.length?v.reduce((a,b)=>a+b)/v.length:null}
+const mavg=(g,n)=>{const r=((R[g.id]||{}).mn||{})[n]||{},v=K.map(([k])=>r[k]).filter(x=>typeof x==="number");return v.length?v.reduce((a,b)=>a+b)/v.length:null};
+function pavg(n){const v=[],a=avg(n);if(a!==null)v.push(a);G.forEach(g=>{if(g.ind&&g.ms.includes(n)){const x=mavg(g,n);if(x!==null)v.push(x)}});return v.length?v.reduce((a,b)=>a+b)/v.length:null}
+function avg(n){if(n[0]==="g"&&(G.find(x=>x.id===n)||{}).ind)return null;const v=K.map(([k])=>(R[n]||{})[k]).filter(x=>typeof x==="number");return v.length?v.reduce((a,b)=>a+b)/v.length:null}
 const mood=a=>a===null?1:a>=15?0:a>=9?1:2;
 const W=595,H=842,SC=1.5;
 const ld=s=>new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=j;i.src=s});
@@ -252,6 +262,17 @@ function avgBar(c,y,vals,lab){
   c.fillStyle="rgba(0,0,0,.28)";c.strokeStyle="rgba(245,192,74,.85)";c.lineWidth=1.5;rr(c,34,y,W-68,36,8);c.fill();c.stroke();
   tx(c,"Moyenne générale · "+v.length+" "+lab,50,y+23,14,"#fff","left","700");tx(c,f(m)+" / 20",W-48,y+24,18,"#f5c04a","right","800");
 }
+function indTable(c,g,r){
+  const nk=g.ms.length,p=Math.min(34,Math.floor(215/Math.max(nk,1)));
+  tx(c,"Prénom",50,436,11,"#e9b8c0","left","700");
+  [["Voix",290],["Expression",365],["Émotion",440]].forEach(([t,x])=>tx(c,t,x,436,11,"#e9b8c0","right","700"));
+  tx(c,"Moyenne",W-50,436,11,"#e9b8c0","right","700");
+  g.ms.forEach((n,i)=>{const y=444+i*p,x=(r.mn||{})[n]||{},my=y+(p-4)/2+5;
+    c.fillStyle="rgba(0,0,0,.28)";rr(c,40,y,W-80,p-4,8);c.fill();
+    tx(c,n,50,my,14,"#fff","left","700");
+    K.forEach(([k],j)=>tx(c,f(typeof x[k]==="number"?x[k]:null),[290,365,440][j],my,14,"#fff","right","600"));
+    tx(c,f(mavg(g,n)),W-50,my,15,"#f5c04a","right","800")});
+}
 function songCard(c,r,im,x,y){
   c.save();rr(c,x,y,50,50,8);c.clip();c.drawImage(im,x,y,50,50);c.restore();
   c.strokeStyle="rgba(245,192,74,.7)";c.lineWidth=1.5;rr(c,x,y,50,50,8);c.stroke();
@@ -261,14 +282,15 @@ function songCard(c,r,im,x,y){
 async function pdf(){
   const b=$("pdf"),lab=b.textContent;b.textContent="Création du PDF…";b.disabled=true;
   try{
-    const NR=N.filter(n=>avg(n)!==null),GR=gsort().filter(g=>avg(g.id)!==null),I={},Ph={},cov={};
+    const NR=N.filter(n=>avg(n)!==null),GR=gsort().filter(g=>avg(g.id)!==null),GI=G.filter(g=>g.ind&&g.ms.some(n=>mavg(g,n)!==null)),GA=[...GR,...GI],RK=N.filter(n=>pavg(n)!==null),I={},Ph={},cov={},RI={};
+    await Promise.all(RK.map(async n=>{RI[n]=await ld(C[n][mood(pavg(n))])}));
     await Promise.all(NR.map(async n=>{I[n]=await ld(C[n][mood(avg(n))]);Ph[n]=await ld(P[n])}));
-    GR.forEach(g=>g.ms.forEach(n=>{if(!(n in cov))cov[n]=C[n][mood(avg(g.id))]}));
-    NR.forEach(n=>cov[n]=C[n][mood(avg(n))]);
+    GA.forEach(g=>g.ms.forEach(n=>{if(!(n in cov))cov[n]=C[n][mood(g.ind?mavg(g,n):avg(g.id))]}));
+    RK.forEach(n=>cov[n]=C[n][mood(pavg(n))]);
     const CN=N.filter(n=>n in cov);
     await Promise.all(CN.map(async n=>{cov[n]=await ld(cov[n])}));
-    const CV={};await Promise.all([...NR,...GR.map(g=>g.id)].map(async k=>{CV[k]=await ldc((R[k]||{}).i)}));
-    const L=NR.slice().sort((a,b)=>(avg(b)??-1)-(avg(a)??-1)),pg=[];
+    const CV={};await Promise.all([...NR,...GA.map(g=>g.id)].map(async k=>{CV[k]=await ldc((R[k]||{}).i)}));
+    const L=RK.slice().sort((a,b)=>(pavg(b)??-1)-(pavg(a)??-1)),pg=[];
     let [cv,c]=page();pg.push(cv);
     logo(c,92,40);tx(c,"Promo 2026",W/2,120,16,"#e9b8c0","center");
     tx(c,"Mes notes",W/2,200,46,"#fff","center","800");tx(c,"d’évaluation",W/2,250,46,"#f5c04a","center","800");
@@ -292,33 +314,34 @@ async function pdf(){
       if(r.w)tx(c,"« "+r.w+" »",W/2,654,20,"#f5c04a","center","italic 700");
       if(r.c){c.fillStyle="rgba(0,0,0,.28)";rr(c,40,668,W-80,132,10);c.fill();wrap(c,r.c,54,690,W-108,17,7,13)}
     });
-    for(const g of GR){
+    for(const g of GA){
       [cv,c]=page();pg.push(cv);const r=R[g.id]||{},a=avg(g.id),m=mood(a),nk=g.ms.length;
       logo(c,54,16);tx(c,g.t||"Passage en groupe",W/2,108,(g.t||"").length>22?28:38,"#f5c04a","center","800");
-      if((r.s||r.a)&&!CV[g.id])tx(c,"♪ "+(r.s||"")+(r.s&&r.a?" – ":"")+(r.a||""),W/2,134,15,"#e9b8c0","center","italic 500");
+      if((r.s||r.a)&&(!CV[g.id]||g.ind))tx(c,"♪ "+(r.s||"")+(r.s&&r.a?" – ":"")+(r.a||""),W/2,134,15,"#e9b8c0","center","italic 500");
       const gw=Math.min(150,(W-80)/Math.max(nk,1)),x0=(W-gw*nk)/2;
-      for(let i=0;i<nk;i++){const im=await ld(C[g.ms[i]][m]);fit(c,im,x0+i*gw,150,gw,250);tx(c,g.ms[i],x0+i*gw+gw/2,418,12,"#fff","center","600")}
-      tx(c,f(a),40,480,50,"#f5c04a","left","800");tx(c,"/ 20",40+c.measureText(f(a)).width+8,480,16,"#e9b8c0","left","500");
-      tx(c,a===null?"Pas encore noté":T[m],40,504,15,"#e9b8c0","left","500");
-      if(CV[g.id])songCard(c,r,CV[g.id],305,452);
-      K.forEach(([k,l],i)=>{const y=530+i*44,v=typeof r[k]==="number"?r[k]:null;
+      for(let i=0;i<nk;i++){const im=await ld(C[g.ms[i]][g.ind?mood(mavg(g,g.ms[i])):m]);fit(c,im,x0+i*gw,150,gw,250);tx(c,g.ms[i],x0+i*gw+gw/2,418,12,"#fff","center","600")}
+      if(!g.ind){tx(c,f(a),40,480,50,"#f5c04a","left","800");tx(c,"/ 20",40+c.measureText(f(a)).width+8,480,16,"#e9b8c0","left","500");
+      tx(c,a===null?"Pas encore noté":T[m],40,504,15,"#e9b8c0","left","500")}
+      if(CV[g.id]&&!g.ind)songCard(c,r,CV[g.id],305,452);
+      if(g.ind)indTable(c,g,r);
+      if(!g.ind)K.forEach(([k,l],i)=>{const y=530+i*44,v=typeof r[k]==="number"?r[k]:null;
         tx(c,l,40,y,15,"#fff","left","600");tx(c,f(v),W-40,y,16,"#f5c04a","right","700");
         c.fillStyle="rgba(255,255,255,.15)";rr(c,40,y+10,W-80,10,5);c.fill();
         if(v){c.fillStyle="#f5c04a";rr(c,40,y+10,Math.max(10,(W-80)*v/20),10,5);c.fill()}});
       if(r.w)tx(c,"« "+r.w+" »",W/2,668,20,"#f5c04a","center","italic 700");
       if(r.c){c.fillStyle="rgba(0,0,0,.28)";rr(c,40,680,W-80,120,10);c.fill();wrap(c,r.c,54,702,W-108,16,6,13)}
     }
-    if(NR.length){
+    if(RK.length){
     [cv,c]=page();pg.push(cv);
     logo(c,54,16);tx(c,"Classement",W/2,100,34,"#f5c04a","center","800");
-    L.forEach((n,i)=>{const y=125+i*40,a=avg(n),r=R[n]||{};
+    L.forEach((n,i)=>{const y=125+i*40,a=pavg(n),r=R[n]||{};
       c.fillStyle="rgba(0,0,0,.28)";rr(c,34,y,W-68,36,8);c.fill();
       tx(c,a===null?"–":String(i+1),54,y+25,16,"#f5c04a","center","800");
-      fit(c,I[n],72,y,34,36);
+      fit(c,RI[n],72,y,34,36);
       tx(c,n,118,y+17,15,"#fff","left","700");
       tx(c,(a===null?"Pas encore noté":T[mood(a)])+(r.w?" · "+r.w:""),118,y+31,10,"#e9b8c0","left","500");
       tx(c,f(a),W-48,y+25,18,"#f5c04a","right","800")});
-      avgBar(c,125+L.length*40+8,L.map(n=>avg(n)),L.length>1?"élèves notés":"élève noté");
+      avgBar(c,125+L.length*40+8,L.map(n=>pavg(n)),L.length>1?"élèves notés":"élève noté");
     }
     if(GR.length){
       [cv,c]=page();pg.push(cv);
@@ -341,15 +364,15 @@ async function pdf(){
   b.textContent=lab;b.disabled=false;
 }
 const gname=g=>g.t||g.ms.join(", ")||"Groupe";
-const gsort=()=>G.slice().sort((x,y)=>(avg(y.id)??-1)-(avg(x.id)??-1));
+const gsort=()=>G.filter(g=>!g.ind).sort((x,y)=>(avg(y.id)??-1)-(avg(x.id)??-1));
 const gma=(arr,lb)=>{const v=arr.filter(x=>x!==null);return v.length?`<div class="gavg"><span>Moyenne générale</span><b>${f(v.reduce((a,b)=>a+b)/v.length)} / 20</b><small>Sur ${v.length} ${v.length>1?lb[1]:lb[0]}</small></div>`:""};
-function gr(){return G.length?'<h3 class="rh">Classement des groupes</h3><ol class="rank">'+gsort().map((g,i)=>{const a=avg(g.id),m=mood(a),r=R[g.id]||{};
-  return `<li data-g="${g.id}"><span class="pos">${a===null?"–":i+1}</span><span class="gi">${g.ms.slice(0,3).map(n=>`<img src="${C[n][m]}" alt="">`).join("")}</span><span class="nm">${esc(gname(g))}<small>${a===null?"Pas encore noté":T[m]}${r.w?` · <em>${esc(r.w)}</em>`:""}</small></span><span class="sc">${f(a)}</span></li>`}).join("")+"</ol>"+gma(G.map(g=>avg(g.id)),["groupe noté","groupes notés"]):""}
+function gr(){return G.some(g=>!g.ind)?'<h3 class="rh">Classement des groupes</h3><ol class="rank">'+gsort().map((g,i)=>{const a=avg(g.id),m=mood(a),r=R[g.id]||{};
+  return `<li data-g="${g.id}"><span class="pos">${a===null?"–":i+1}</span><span class="gi">${g.ms.slice(0,3).map(n=>`<img src="${C[n][m]}" alt="">`).join("")}</span><span class="nm">${esc(gname(g))}<small>${a===null?"Pas encore noté":T[m]}${r.w?` · <em>${esc(r.w)}</em>`:""}</small></span><span class="sc">${f(a)}</span></li>`}).join("")+"</ol>"+gma(G.filter(g=>!g.ind).map(g=>avg(g.id)),["groupe noté","groupes notés"]):""}
 const goTab=k=>k==="rank"?rank():k==="groups"?groups():home();
 function groups(){
   tab="groups";tabs();
   $("app").innerHTML=(G.length?'<ul class="gl">'+G.map(g=>{const a=avg(g.id),r=R[g.id]||{};
-    return `<li data-g="${g.id}"><span class="gm">${g.ms.slice(0,4).map(n=>`<i style="background-image:url(${P[n]})"></i>`).join("")}</span><span class="nm">${esc(g.t||g.ms.join(", ")||"Nouveau groupe")}<small>${r.s?esc(r.s):"Pas encore de chanson"} · ${a===null?"Pas encore noté":T[mood(a)]}</small></span><span class="sc">${f(a)}</span></li>`}).join("")+"</ul>":'<p class="empty">Aucun groupe pour le moment.</p>')+'<button class="pdf" id="newg">+ Nouveau groupe</button>';
+    return `<li data-g="${g.id}"><span class="gm">${g.ms.slice(0,4).map(n=>`<i style="background-image:url(${P[n]})"></i>`).join("")}</span><span class="nm">${esc(g.t||g.ms.join(", ")||"Nouveau groupe")}<small>${r.s?esc(r.s):"Pas encore de chanson"} · ${g.ind?"Noté personne par personne":a===null?"Pas encore noté":T[mood(a)]}</small></span><span class="sc">${g.ind?"":f(a)}</span></li>`}).join("")+"</ul>":'<p class="empty">Aucun groupe pour le moment.</p>')+'<button class="pdf" id="newg">+ Nouveau groupe</button>';
   top0();
 }
 function gfiche(id){
@@ -359,11 +382,14 @@ function gfiche(id){
   <div class="cm" style="margin-top:12px"><label>Membres</label><div class="mem">${N.map(n=>`<button class="mb ${g.ms.includes(n)?"on":""}" data-mb="${n}" data-g="${id}" style="background-image:url(${P[n]})"><span>${n}</span></button>`).join("")}</div></div>
   <div class="song"><input class="wd" maxlength="60" data-song="${id}" placeholder="Titre de la chanson" value="${esc(r.s||"")}"><input class="wd" maxlength="60" data-art="${id}" placeholder="Artiste" value="${esc(r.a||"")}"></div>
   <div id="res" class="res"></div><div id="pk">${pkHTML(r)}</div>
-  <div class="stage gst" id="gst"></div>
-  <div class="avgbox"><big id="av"></big><small> /20</small><div class="mood" id="md"></div></div>
-  <div class="crit">`+K.map(([k,l])=>`<div><label>${l}<output id="o-${k}">${f(typeof r[k]==="number"?r[k]:null)}</output></label><input type="range" min="0" max="20" step="0.5" value="${typeof r[k]==="number"?r[k]:10}" data-k="${k}" data-n="${id}"></div>`).join("")+
-  `</div><div class="cm" style="margin-top:16px"><label>Un mot sur sa performance</label><input class="wd" maxlength="30" data-w="${id}" placeholder="Ex. : bouleversant" value="${esc(r.w||"")}"></div><div class="cm" style="margin-top:16px"><label>Commentaire</label><textarea data-c="${id}" placeholder="Tes remarques…">${esc(r.c||"")}</textarea></div><button class="clear" data-delg="${id}">Supprimer le groupe</button>`;
-  gupd(id);top0();
+  ${gbody(g,r)}<div class="cm" style="margin-top:16px"><label>Un mot sur sa performance</label><input class="wd" maxlength="30" data-w="${id}" placeholder="Ex. : bouleversant" value="${esc(r.w||"")}"></div><div class="cm" style="margin-top:16px"><label>Commentaire</label><textarea data-c="${id}" placeholder="Tes remarques…">${esc(r.c||"")}</textarea></div><button class="clear" data-delg="${id}">Supprimer le groupe</button>`;
+  if(!g.ind)gupd(id);top0();
+}
+function gbody(g,r){
+  const tg=`<button class="tg ${g.ind?"on":""}" data-ind="${g.id}">Noter personne par personne : ${g.ind?"activé":"désactivé"}</button>`;
+  if(!g.ind)return tg+`<div class="stage gst" id="gst"></div><div class="avgbox"><big id="av"></big><small> /20</small><div class="mood" id="md"></div></div><div class="crit">`+K.map(([k,l])=>`<div><label>${l}<output id="o-${k}">${f(typeof r[k]==="number"?r[k]:null)}</output></label><input type="range" min="0" max="20" step="0.5" value="${typeof r[k]==="number"?r[k]:10}" data-k="${k}" data-n="${g.id}"></div>`).join("")+`</div>`;
+  const mn=r.mn||{};
+  return tg+`<p class="note">Chaque personne a sa propre note. La chanson, le mot et le commentaire sont communs.</p>`+(g.ms.length?g.ms.map((n,i)=>{const x=mn[n]||{};return `<div class="mbx"><div class="mh"><i style="background-image:url(${P[n]})"></i><b>${n}</b><span id="ma-${i}">${f(mavg(g,n))}</span></div><div class="crit">`+K.map(([k,l])=>`<div><label>${l}<output id="o-${i}-${k}">${f(typeof x[k]==="number"?x[k]:null)}</output></label><input type="range" min="0" max="20" step="0.5" value="${typeof x[k]==="number"?x[k]:10}" data-k="${k}" data-n="${g.id}" data-mi="${i}"></div>`).join("")+`</div></div>`}).join(""):`<p class="note">Choisis d’abord les membres du groupe.</p>`);
 }
 function gupd(id){const g=G.find(x=>x.id===id),a=avg(id),m=mood(a);$("av").textContent=f(a);$("md").textContent=a===null?"Pas encore noté":T[m];$("gst").innerHTML=g.ms.map(n=>`<img src="${C[n][m]}" alt="">`).join("")||'<p class="empty">Choisis les membres du groupe.</p>'}
 let au=null,cur="",SR=[],tm=0,seq=0;
@@ -401,14 +427,14 @@ function search(id){
 function tabs(){ROOT.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab))}
 function rank(){
   tab="rank";tabs();
-  const L=N.slice().sort((a,b)=>(avg(b)??-1)-(avg(a)??-1));
-  $("app").innerHTML='<ol class="rank">'+L.map((n,i)=>{const a=avg(n);
-    return `<li data-n="${n}"><span class="pos">${a===null?"–":i+1}</span><img src="${C[n][mood(a)]}" alt=""><span class="nm">${n}<small>${a===null?"Pas encore noté":T[mood(a)]}${(R[n]||{}).w?` · <em>${esc(R[n].w)}</em>`:""}</small></span><span class="sc">${f(a)}</span></li>`}).join("")+'</ol>'+gma(L.map(n=>avg(n)),["élève noté","élèves notés"])+gr()+'<button class="pdf" id="pdf">Télécharger le PDF</button><button class="clear" id="wipe">Tout supprimer</button>';
+  const L=N.slice().sort((a,b)=>(pavg(b)??-1)-(pavg(a)??-1));
+  $("app").innerHTML='<ol class="rank">'+L.map((n,i)=>{const a=pavg(n);
+    return `<li data-n="${n}"><span class="pos">${a===null?"–":i+1}</span><img src="${C[n][mood(a)]}" alt=""><span class="nm">${n}<small>${a===null?"Pas encore noté":T[mood(a)]}${(R[n]||{}).w?` · <em>${esc(R[n].w)}</em>`:""}</small></span><span class="sc">${f(a)}</span></li>`}).join("")+'</ol>'+gma(L.map(n=>pavg(n)),["élève noté","élèves notés"])+gr()+'<button class="pdf" id="pdf">Télécharger le PDF</button><button class="clear" id="wipe">Tout supprimer</button>';
   top0();
 }
 function home(){
   tab="home";tabs();
-  $("app").innerHTML='<div class="grid">'+N.map(n=>{const a=avg(n);
+  $("app").innerHTML='<div class="grid">'+N.map(n=>{const a=pavg(n);
     return `<button class="card" data-n="${n}"><span class="ph" style="background-image:url(${P[n]})">${a===null?"":`<i class="b m${mood(a)}">${f(a)}</i>`}</span><b>${n}</b></button>`}).join("")+"</div>";
   top0();
 }
@@ -434,8 +460,10 @@ ROOT.addEventListener("click",e=>{
   const pk=e.target.closest("[data-pick]");
   if(pk){const x=SR[+pk.dataset.pick],id=pk.dataset.id,r=(R[id]=R[id]||{});r.s=x.trackName;r.a=x.artistName;r.p=x.previewUrl;r.i=x.artworkUrl100||x.artworkUrl60||"";save();
     ROOT.querySelector("[data-song]").value=r.s;ROOT.querySelector("[data-art]").value=r.a;$("res").innerHTML="";stop();$("pk").innerHTML=pkHTML(r);return}
+  const tg=e.target.closest("[data-ind]");
+  if(tg){const g=G.find(x=>x.id===tg.dataset.ind);g.ind=!g.ind;saveG();return gfiche(g.id)}
   const mb=e.target.closest("[data-mb]");
-  if(mb){const g=G.find(x=>x.id===mb.dataset.g),n=mb.dataset.mb,i=g.ms.indexOf(n);if(i<0)g.ms.push(n);else g.ms.splice(i,1);mb.classList.toggle("on",i<0);saveG();return gupd(g.id)}
+  if(mb){const g=G.find(x=>x.id===mb.dataset.g),n=mb.dataset.mb,i=g.ms.indexOf(n);if(i<0)g.ms.push(n);else g.ms.splice(i,1);mb.classList.toggle("on",i<0);saveG();return g.ind?gfiche(g.id):gupd(g.id)}
   const gl=e.target.closest("li[data-g]");if(gl)return gfiche(gl.dataset.g);
   if(e.target.id==="newg"){const id="g"+Date.now();G.push({id,t:"",ms:[]});saveG();return gfiche(id)}
   const dg=e.target.closest("[data-delg]");
@@ -458,7 +486,9 @@ ROOT.addEventListener("input",e=>{
   const cm=e.target.dataset&&e.target.dataset.c;
   if(cm){(R[cm]=R[cm]||{}).c=e.target.value;return save()}
   const k=e.target.dataset&&e.target.dataset.k;if(!k)return;
-  const n=e.target.dataset.n;(R[n]=R[n]||{})[k]=+e.target.value;
+  const n=e.target.dataset.n;
+  if(e.target.dataset.mi!==undefined){const mi=e.target.dataset.mi,g=G.find(x=>x.id===n),mem=g.ms[+mi],r=(R[n]=R[n]||{});r.mn=r.mn||{};r.mn[mem]=r.mn[mem]||{};r.mn[mem][k]=+e.target.value;$("o-"+mi+"-"+k).textContent=f(+e.target.value);$("ma-"+mi).textContent=f(mavg(g,mem));save();return}
+  (R[n]=R[n]||{})[k]=+e.target.value;
   $("o-"+k).textContent=f(+e.target.value);save();P[n]?upd(n):gupd(n);
 });
 home();
