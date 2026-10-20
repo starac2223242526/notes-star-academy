@@ -147,7 +147,7 @@ input[type=range]{touch-action:pan-y}
 #notes .tg.on{background:var(--gold);color:var(--bg)}
 #notes .mbx{margin-top:14px}
 #notes .mh{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-#notes .mh i{width:40px;height:40px;border-radius:50%;background-size:cover;background-position:center;border:2px solid var(--gold)}
+#notes .mh i{width:56px;height:56px;border-radius:50%;background-size:cover;background-position:center;border:2px solid var(--gold)}
 #notes .mh b{flex:1}
 #notes .mh span{color:var(--gold);font-weight:800;font-size:1.2rem}
 #notes .note{color:var(--mut);font-size:.85rem;margin:0 0 4px}
@@ -218,7 +218,8 @@ const $=id=>ROOT.querySelector("#"+id);
 const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const f=x=>x===null?"–":(Math.round(x*10)/10).toString().replace(".",",");
 const mavg=(g,n)=>{const r=((R[g.id]||{}).mn||{})[n]||{},v=K.map(([k])=>r[k]).filter(x=>typeof x==="number");return v.length?v.reduce((a,b)=>a+b)/v.length:null};
-function pavg(n){const v=[],a=avg(n);if(a!==null)v.push(a);G.forEach(g=>{if(g.ind&&g.ms.includes(n)){const x=mavg(g,n);if(x!==null)v.push(x)}});return v.length?v.reduce((a,b)=>a+b)/v.length:null}
+const inInd=n=>G.filter(g=>g.ind&&g.ms.includes(n));
+function pavg(n){const gs=inInd(n);if(!gs.length)return avg(n);const v=gs.map(g=>mavg(g,n)).filter(x=>x!==null);return v.length?v.reduce((a,b)=>a+b)/v.length:null}
 function avg(n){if(n[0]==="g"&&(G.find(x=>x.id===n)||{}).ind)return null;const v=K.map(([k])=>(R[n]||{})[k]).filter(x=>typeof x==="number");return v.length?v.reduce((a,b)=>a+b)/v.length:null}
 const mood=a=>a===null?1:a>=15?0:a>=9?1:2;
 const W=595,H=842,SC=1.5;
@@ -262,6 +263,7 @@ function avgBar(c,y,vals,lab){
   c.fillStyle="rgba(0,0,0,.28)";c.strokeStyle="rgba(245,192,74,.85)";c.lineWidth=1.5;rr(c,34,y,W-68,36,8);c.fill();c.stroke();
   tx(c,"Moyenne générale · "+v.length+" "+lab,50,y+23,14,"#fff","left","700");tx(c,f(m)+" / 20",W-48,y+24,18,"#f5c04a","right","800");
 }
+let PHm={};
 function indTable(c,g,r){
   const nk=g.ms.length,p=Math.min(34,Math.floor(215/Math.max(nk,1)));
   tx(c,"Prénom",50,436,11,"#e9b8c0","left","700");
@@ -269,7 +271,8 @@ function indTable(c,g,r){
   tx(c,"Moyenne",W-50,436,11,"#e9b8c0","right","700");
   g.ms.forEach((n,i)=>{const y=444+i*p,x=(r.mn||{})[n]||{},my=y+(p-4)/2+5;
     c.fillStyle="rgba(0,0,0,.28)";rr(c,40,y,W-80,p-4,8);c.fill();
-    tx(c,n,50,my,14,"#fff","left","700");
+    const sz=p-8;if(PHm[n]){c.save();rr(c,50,y+2,sz,sz,6);c.clip();c.drawImage(PHm[n],50,y+2,sz,sz);c.restore()}
+    tx(c,n,50+sz+8,my,14,"#fff","left","700");
     K.forEach(([k],j)=>tx(c,f(typeof x[k]==="number"?x[k]:null),[290,365,440][j],my,14,"#fff","right","600"));
     tx(c,f(mavg(g,n)),W-50,my,15,"#f5c04a","right","800")});
 }
@@ -282,8 +285,9 @@ function songCard(c,r,im,x,y){
 async function pdf(){
   const b=$("pdf"),lab=b.textContent;b.textContent="Création du PDF…";b.disabled=true;
   try{
-    const NR=N.filter(n=>avg(n)!==null),GR=gsort().filter(g=>avg(g.id)!==null),GI=G.filter(g=>g.ind&&g.ms.some(n=>mavg(g,n)!==null)),GA=[...GR,...GI],RK=N.filter(n=>pavg(n)!==null),I={},Ph={},cov={},RI={};
+    const NR=N.filter(n=>avg(n)!==null&&!inInd(n).length),GR=gsort().filter(g=>avg(g.id)!==null),GI=G.filter(g=>g.ind&&g.ms.some(n=>mavg(g,n)!==null)),GA=[...GR,...GI],RK=N.filter(n=>pavg(n)!==null),I={},Ph={},cov={},RI={};
     await Promise.all(RK.map(async n=>{RI[n]=await ld(C[n][mood(pavg(n))])}));
+    PHm={};await Promise.all([...new Set(GI.flatMap(g=>g.ms))].map(async n=>{PHm[n]=await ld(P[n])}));
     await Promise.all(NR.map(async n=>{I[n]=await ld(C[n][mood(avg(n))]);Ph[n]=await ld(P[n])}));
     GA.forEach(g=>g.ms.forEach(n=>{if(!(n in cov))cov[n]=C[n][mood(g.ind?mavg(g,n):avg(g.id))]}));
     RK.forEach(n=>cov[n]=C[n][mood(pavg(n))]);
@@ -317,12 +321,13 @@ async function pdf(){
     for(const g of GA){
       [cv,c]=page();pg.push(cv);const r=R[g.id]||{},a=avg(g.id),m=mood(a),nk=g.ms.length;
       logo(c,54,16);tx(c,g.t||"Passage en groupe",W/2,108,(g.t||"").length>22?28:38,"#f5c04a","center","800");
-      if((r.s||r.a)&&(!CV[g.id]||g.ind))tx(c,"♪ "+(r.s||"")+(r.s&&r.a?" – ":"")+(r.a||""),W/2,134,15,"#e9b8c0","center","italic 500");
+      if((r.s||r.a)&&!CV[g.id])tx(c,"♪ "+(r.s||"")+(r.s&&r.a?" – ":"")+(r.a||""),W/2,134,15,"#e9b8c0","center","italic 500");
       const gw=Math.min(150,(W-80)/Math.max(nk,1)),x0=(W-gw*nk)/2;
-      for(let i=0;i<nk;i++){const im=await ld(C[g.ms[i]][g.ind?mood(mavg(g,g.ms[i])):m]);fit(c,im,x0+i*gw,150,gw,250);tx(c,g.ms[i],x0+i*gw+gw/2,418,12,"#fff","center","600")}
+      for(let i=0;i<nk;i++){const im=await ld(C[g.ms[i]][g.ind?mood(mavg(g,g.ms[i])):m]);fit(c,im,x0+i*gw,(g.ind&&CV[g.id])?178:150,gw,(g.ind&&CV[g.id])?222:250);tx(c,g.ms[i],x0+i*gw+gw/2,418,12,"#fff","center","600")}
       if(!g.ind){tx(c,f(a),40,480,50,"#f5c04a","left","800");tx(c,"/ 20",40+c.measureText(f(a)).width+8,480,16,"#e9b8c0","left","500");
       tx(c,a===null?"Pas encore noté":T[m],40,504,15,"#e9b8c0","left","500")}
       if(CV[g.id]&&!g.ind)songCard(c,r,CV[g.id],305,452);
+      if(g.ind&&CV[g.id])songCard(c,r,CV[g.id],172,122);
       if(g.ind)indTable(c,g,r);
       if(!g.ind)K.forEach(([k,l],i)=>{const y=530+i*44,v=typeof r[k]==="number"?r[k]:null;
         tx(c,l,40,y,15,"#fff","left","600");tx(c,f(v),W-40,y,16,"#f5c04a","right","700");
@@ -439,17 +444,18 @@ function home(){
   top0();
 }
 function fiche(n){
-  const r=R[n]||{};
+  const r=R[n]||{},dis=inInd(n).length?"disabled":"";
   $("app").innerHTML=`<button class="back" data-back>← Promo</button><h2>${n}</h2>
+  ${dis?`<p class="note">Cette personne est notée « personne par personne » dans un groupe : sa note vient de ce passage et la notation individuelle est désactivée.</p>`:""}
   <div class="song"><input class="wd" maxlength="60" data-song="${n}" placeholder="Titre de la chanson" value="${esc(r.s||"")}"><input class="wd" maxlength="60" data-art="${n}" placeholder="Artiste" value="${esc(r.a||"")}"></div>
   <div id="res" class="res"></div><div id="pk">${pkHTML(r)}</div>
   <div class="stage"><div class="real" style="background-image:url(${P[n]})"></div><img id="ch" alt=""></div>
   <div class="avgbox"><big id="av"></big><small> /20</small><div class="mood" id="md"></div></div>
-  <div class="crit">`+K.map(([k,l])=>`<div><label>${l}<output id="o-${k}">${f(typeof r[k]==="number"?r[k]:null)}</output></label><input type="range" min="0" max="20" step="0.5" value="${typeof r[k]==="number"?r[k]:10}" data-k="${k}" data-n="${n}"></div>`).join("")+
-  `</div><div class="cm" style="margin-top:16px"><label>Un mot sur sa performance</label><input class="wd" maxlength="30" data-w="${n}" placeholder="Ex. : bouleversant" value="${esc(r.w||"")}"></div><div class="cm" style="margin-top:16px"><label>Commentaire</label><textarea data-c="${n}" placeholder="Tes remarques…">${esc(r.c||"")}</textarea></div><button class="clear" data-clear="${n}">Effacer la fiche</button>`;
+  <div class="crit">`+K.map(([k,l])=>`<div><label>${l}<output id="o-${k}">${f(typeof r[k]==="number"?r[k]:null)}</output></label><input type="range" min="0" max="20" step="0.5" value="${typeof r[k]==="number"?r[k]:10}" data-k="${k}" data-n="${n}" ${dis}></div>`).join("")+
+  `</div><div class="cm" style="margin-top:16px"><label>Un mot sur sa performance</label><input class="wd" maxlength="30" data-w="${n}" placeholder="Ex. : bouleversant" value="${esc(r.w||"")}" ${dis}></div><div class="cm" style="margin-top:16px"><label>Commentaire</label><textarea data-c="${n}" placeholder="Tes remarques…" ${dis}>${esc(r.c||"")}</textarea></div><button class="clear" data-clear="${n}">Effacer la fiche</button>`;
   upd(n);top0();
 }
-function upd(n){const a=avg(n),m=mood(a);$("av").textContent=f(a);$("md").textContent=a===null?"Pas encore noté":T[m];$("ch").src=C[n][m]}
+function upd(n){const a=pavg(n),m=mood(a);$("av").textContent=f(a);$("md").textContent=a===null?"Pas encore noté":T[m];$("ch").src=C[n][m]}
 ROOT.addEventListener("click",e=>{
   const c=e.target.closest("[data-n]");
   if(c&&(c.classList.contains("card")||c.tagName==="LI"))return fiche(c.dataset.n);
